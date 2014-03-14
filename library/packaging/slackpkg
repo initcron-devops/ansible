@@ -22,7 +22,7 @@ def execute_command(cmd, module):
 # Function used to install package.
 def package_present(name, module):
 
-        install_cmd = '/sbin/installpkg'
+        install_cmd = '/sbin/upgradepkg --install-new'
 
         # Install the package
         (rc, stdout, stderr) = execute_command("%s %s%s" % (install_cmd, path, name), module)
@@ -32,15 +32,15 @@ def package_present(name, module):
         return (rc, stderr)
 
 
-#        rc, stdout, stderr = execute_command(command, module)
+# Function used to remove package.
+def package_absent(name, module):
 
-#        if (stderr):
-#              module.fail_json(msg="failed in get_package_state(): " + stderr)
+        remove_cmd = '/sbin/removepkg'
 
-#        if rc == 0:
-#              return True
-#        else:
-#              return False
+        # Remove the package
+        (rc, stdout, stderr) = execute_command("%s %s "% (remove_cmd, name), module)
+
+        return (rc, stderr)
 
 
 # Main control flow
@@ -49,7 +49,7 @@ def main():
     module = AnsibleModule(
         argument_spec = dict(
             name = dict(required=True),
-            state = dict(required=True, choices=['present']),
+            state = dict(required=True, choices=['present','absent','latest']),
         ),
 #        supports_check_mode = True
     )
@@ -67,18 +67,11 @@ def main():
 
 
 
-    # Parse package name and put results in the pkg_spec dictionary.
-#    pkg_spec = {}
-#    parse_package_name(name, pkg_spec, module)
-
-
-    # Get package state.
-#    installed_state = get_package_state(name, pkg_spec, module)
-
-
     # Perform requested action.
-    if state in ['present']:
-         (rc, changed)=package_present(name, module)
+    if state in ['present','latest']:
+        (rc, changed) = package_present(name, module)
+    elif state in ['absent']:
+        (rc, changed) = package_absent(name, module)
 
     if rc != 0:
         if stderr:
