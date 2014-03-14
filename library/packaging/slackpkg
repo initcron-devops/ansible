@@ -22,7 +22,7 @@ def execute_command(cmd, module):
 # Function used to install package.
 def package_present(name, module):
 
-        install_cmd = '/sbin/upgradepkg'
+        install_cmd = '/sbin/installpkg'
 
         # Install the package
         (rc, stdout, stderr) = execute_command("%s %s%s" % (install_cmd, path, name), module)
