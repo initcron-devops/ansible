@@ -859,6 +859,41 @@ class OpenBsdService(Service):
         return self.execute_command("%s %s" % (self.svc_cmd, self.action))
 
 # ===========================================
+# Subclass: Slackware
+
+class SlackwareService(Service):
+    """
+    This is the Slackware Service manipulation class - it uses /etc/rc.d for
+    service control. Enabling a service is currently not supported because the
+    <service>_flags variable is not boolean, you should supply a rc.conf.local
+    file in some other way.
+    """
+
+    platform = 'Slackware'
+    distribution = Linux
+
+    def get_service_tools(self):
+        rcdir = '/etc/rc.d'
+
+        rc_script = "%s/%s" % (rcdir, self.name)
+        if os.path.isfile(rc_script):
+            self.svc_cmd = rc_script
+
+        if not self.svc_cmd:
+            self.module.fail_json(msg='unable to find rc.d script')
+
+    def get_service_status(self):
+        rc, stdout, stderr = self.execute_command("%s %s" % (self.svc_cmd, 'check'))
+        if rc == 1:
+            self.running = False
+        elif rc == 0:
+            self.running = True
+
+    def service_control(self):
+        return self.execute_command("%s %s" % (self.svc_cmd, self.action))
+
+
+# ===========================================
 # Subclass: NetBSD
 
 class NetBsdService(Service):
