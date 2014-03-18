@@ -870,7 +870,7 @@ class SlackwareService(Service):
     """
 
     platform = 'Slackware'
-    distribution = Linux
+    distribution = None
 
     def get_service_tools(self):
         rcdir = '/etc/rc.d'
