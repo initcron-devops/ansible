@@ -1,0 +1,106 @@
+#!/usr/bin/python
+
+import re
+import shlex
+import syslog
+
+path = '/etc/rc.d/'
+
+
+# Function used for executing commands.
+def execute_command(cmd, module):
+    #if debug:
+        syslog.syslog("execute_command(): cmd = %s" % cmd)
+    # Break command line into arguments.
+    # This makes run_command() use shell=False which we need to not cause shell
+    # expansion of special characters like '*'.
+        cmd_args = shlex.split(cmd)
+        return module.run_command(cmd_args)
+
+
+
+# Function used to install package.
+def package_present(name, state, module):
+
+        install_cmd = '/etc/rc.d/'
+
+        # Install the package
+        (rc, stdout, stderr) = execute_command("%s%s %s" % (install_cmd, name, state), module)
+
+            # rc=1
+
+        return (rc, stderr)
+
+
+# Function used to remove package.
+def package_absent(name, state, module):
+
+        remove_cmd = ''
+        # Remove the package
+        (rc, stdout, stderr) = execute_command("%s%s %s "% (path, name, state), module)
+
+        return (rc, stderr)
+
+
+def get_service_status(name, module):
+    
+        rcfst = 'ps aux | grep'
+        rcscnd = '| grep -v grep'
+      
+        (rc, stdout, stderr) = execute_command("%s %s %s" % (rcfst , name , rcscnd), module)
+        if rc == 1:
+            print "Not running"
+        elif rc == 0:
+            print "Running"
+
+
+# Main control flow
+
+def main():
+    module = AnsibleModule(
+        argument_spec = dict(
+            name = dict(required=True),
+            state = dict(required=True, choices=['start','stop','restart','status']),
+        ),
+# supports_check_mode = True
+    )
+
+    name = module.params['name']
+    state = module.params['state']
+
+    rc = 0
+    stdout = ''
+    stderr = ''
+    dpath = ''
+    result = {}
+    result['name'] = name
+    result['state'] = state
+
+
+    # Perform requested action.
+    if state in ['start']:
+        (rc, changed) = package_present(name, state, module)
+    elif state in ['stop']:
+        (rc, changed) = package_absent(name, state, module)
+    elif state in ['restart']:
+        (rc, changed) = package_absent(name, state, module)
+    elif state in ['status']:
+        (rc, changed) = get_service_status(name, module)
+    
+
+    if rc != 0:
+        if stderr:
+            module.fail_json(msg=stderr)
+        else:
+            module.fail_json(msg=stdout)
+
+    result['changed'] = changed
+
+    module.exit_json(**result)
+
+# import module snippets
+from ansible.module_utils.basic import *
+main()
+
+
+
