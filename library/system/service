@@ -275,12 +275,17 @@ class Service(object):
             self.module.fail_json(msg="failed determining service state, possible typo of service name?")
         # Find out if state has changed
         if not self.running and self.state in ["started", "running", "reloaded"]:
-#        if self.running and self.state in ["started", "running", "reloaded"]:
             self.svc_change = True
+
+#        elif self.running and self.state in ["started", "running", "reloaded"]:
+#            self.svc_change = True
         elif self.running and self.state in ["stopped","reloaded"]:
             self.svc_change = True
         elif self.state == "restarted":
             self.svc_change = True
+	else:
+	    self.module.exit_json(changed=False, msg="check_service_changed (No condition satisfied)")
+
         if self.module.check_mode and self.svc_change:
             self.module.exit_json(changed=True, msg='service state changed')
 
@@ -395,7 +400,7 @@ class LinuxService(Service):
             location[binary] = self.module.get_bin_path(binary)
 
         def check_systemd(name):
-            # verify service is managed by systemd
+	            # verify service is managed by systemd
             if not location.get('systemctl', None):
                 return False
 
@@ -877,7 +882,6 @@ class SlackwareService(Service):
     def get_service_tools(self):
         rcdir = '/etc/rc.d/'
 	
-	
         rc_script = "%s/%s" % (rcdir, self.name)
         if os.path.isfile(rc_script):
             self.svc_cmd = rc_script
@@ -887,17 +891,26 @@ class SlackwareService(Service):
 
     def get_service_status(self):
 	var = self.name
-        (a , b) = var.split(".")
+        (service_var1 , service_var2) = var.split(".")
+	msg = '"split var"'
+	json.loads(msg)
+
 
 #        rcfst = 'ps aux|grep'
 #        rcscnd = '|grep -v grep'
 
-        rc, stdout , stderr = self.execute_command("%s %s/%s" % ('ps aux|grep ', b , '|grep -v grep'))
-
+        rc, stdout , stderr = self.execute_command("%s %s/%s" % ('ps aux|grep ', service_var2 , '|grep -v grep'))
+	
         if rc == 1:
             self.running = False
+
         elif rc == 0:
             self.running = True
+	   
+        else:
+            print json.dumps({"msg" : "rc != 0 or 1"})
+
+
 
     def service_control(self):
         return self.execute_command("%s %s" % (self.svc_cmd, self.action))
@@ -1184,6 +1197,8 @@ def main():
         syslog.syslog(syslog.LOG_NOTICE, 'Service instantiated - platform %s' % service.platform)
         if service.distribution:
             syslog.syslog(syslog.LOG_NOTICE, 'Service instantiated - distribution %s' % service.distribution)
+    main = '"main"'
+    json.loads(main)
 
     rc = 0
     out = ''
@@ -1206,7 +1221,8 @@ def main():
         result['changed'] = service.changed
         module.exit_json(**result)
 
-    result['state'] = service.state
+#    result['servc change'] = service.running
+#    module.exit_json(**result)
 
     # Collect service status
     if service.pattern:
@@ -1214,11 +1230,20 @@ def main():
     else:
         service.get_service_status()
 
+#    result['servc running'] = service.running
+#    result['servc state'] = service.state
+#    module.exit_json(**result)
+
+
     # Calculate if request will change service state
     service.check_service_changed()
 
+
     # Modify service state if necessary
     (rc, out, err) = service.modify_service_state()
+
+#    result['modify state check'] = service.running
+#    module.exit_json(**result)
 
     if rc != 0:
         if err and err.find("is already") != -1:
