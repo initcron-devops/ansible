@@ -1,0 +1,142 @@
+#!/usr/bin/python
+
+import re
+import shlex
+import syslog
+
+#path = /root/Downloads
+
+
+# Function used for executing commands.
+def execute_command(cmd, module):
+    #if debug:
+        syslog.syslog("execute_command(): cmd = %s" % cmd)
+    # Break command line into arguments.
+    # This makes run_command() use shell=False which we need to not cause shell
+    # expansion of special characters like '*'.
+        cmd_args = shlex.split(cmd)
+        return module.run_command(cmd_args)
+
+
+#Function used to check package status
+def package_check(name, module):
+
+	pkg_path = 'ls /var/log/packages/'
+
+	(rc, stdout, stderr) = execute_command("%s%s" % (pkg_path, name), module)
+
+        return (rc, stderr)
+
+	#print(json.dumps([{'rc':rc}]))
+	#if rc != 0:
+	#	print json.dumps({"Failed" : True, "msg" : "Not installed"})
+	#else:
+	#	print json.dumps({"Sucess" : True, "msg" : "Installed"})
+
+
+
+# Function used to install package.
+def package_present(name, path, module):
+
+        install_cmd = '/sbin/installpkg'
+
+        # Install the package
+        (rc, stdout, stderr) = execute_command("%s %s%s" % (install_cmd, path, name), module)
+
+            #   rc=1
+
+        return (rc, stderr)
+
+
+
+# Function used to upgrade package.
+def package_latest(name, path, module):
+
+        upgrade_cmd = '/sbin/upgradepkg'
+
+        # Install the package
+        (rc, stdout, stderr) = execute_command("%s %s%s" % (upgrade_cmd, path, name), module)
+
+            #	rc=1
+
+        return (rc, stderr)
+
+
+# Function used to remove package.
+def package_absent(name, module):
+
+        remove_cmd = '/sbin/removepkg'
+
+        # Remove the package
+        (rc, stdout, stderr) = execute_command("%s %s "% (remove_cmd, name), module)
+
+        return (rc, stderr)
+
+
+# Main control flow
+
+def main():
+    module = AnsibleModule(
+        argument_spec = dict(
+            name = dict(required=True),
+	    path = dict(required=True),
+            state = dict(required=True, choices=['present','absent','latest','check']),
+        ),
+#        supports_check_mode = True
+    )
+
+    name = module.params['name']
+    path = module.params['path']	
+    state = module.params['state']
+
+    rc = 0
+    stdout = ''
+    stderr = ''
+    dpath = ''
+    result = {}
+    result['name'] = name
+    result['path'] = path
+    result['state'] = state
+	
+
+
+
+    # Perform requested action.
+    if state in ['present']:
+        (rc, changed) = package_check(name, module)
+	if rc != 0:		
+        	(rc, changed) = package_present(name, path, module)
+	else:
+#		result['state'] = "installed"
+                module.exit_json(**result)
+        	#print json.dumps({"Inst" : inst})
+    elif state in ['latest']:
+        (rc, changed) = package_latest(name, path, module)
+    elif state in ['absent']:
+        (rc, changed) = package_absent(name, module)
+    elif state in ['check']:
+        (rc, changed) = package_check(name, module)
+    else:
+	module.exit_json(changed=False, msg="check_state (No condition satisfied)")
+     	module.exit_json(**result)
+
+
+
+    if rc != 0:
+        if stderr:
+            module.fail_json(msg=stderr)
+        else:
+            module.fail_json(msg= "Package does not exists")
+
+    result['changed'] = changed
+    result['rc'] = rc	
+
+    module.exit_json(**result)
+
+# import module snippets
+from ansible.module_utils.basic import *
+main()
+
+
+
+
