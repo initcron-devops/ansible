@@ -3,6 +3,7 @@
 import re
 import shlex
 import syslog
+import os
 
 #path = /root/Downloads
 
@@ -22,17 +23,11 @@ def execute_command(cmd, module):
 def package_check(name, module):
 
 	pkg_path = 'ls /var/log/packages/'
-
-	(rc, stdout, stderr) = execute_command("%s%s" % (pkg_path, name), module)
+	var = name
+	pckg_name,pckg_extension = os.path.splitext(var)
+	(rc, stdout, stderr) = execute_command("%s%s" % (pkg_path, pckg_name), module)
 
         return (rc, stderr)
-
-	#print(json.dumps([{'rc':rc}]))
-	#if rc != 0:
-	#	print json.dumps({"Failed" : True, "msg" : "Not installed"})
-	#else:
-	#	print json.dumps({"Sucess" : True, "msg" : "Installed"})
-
 
 
 # Function used to install package.
@@ -56,8 +51,6 @@ def package_latest(name, path, module):
 
         # Install the package
         (rc, stdout, stderr) = execute_command("%s %s%s" % (upgrade_cmd, path, name), module)
-
-            #	rc=1
 
         return (rc, stderr)
 
@@ -104,12 +97,11 @@ def main():
     # Perform requested action.
     if state in ['present']:
         (rc, changed) = package_check(name, module)
-	if rc != 0:		
+	if rc != 0 :		
         	(rc, changed) = package_present(name, path, module)
-	else:
+#	else :
 #		result['state'] = "installed"
-                module.exit_json(**result)
-        	#print json.dumps({"Inst" : inst})
+#               	module.exit_json(**result)
     elif state in ['latest']:
         (rc, changed) = package_latest(name, path, module)
     elif state in ['absent']:
@@ -128,6 +120,7 @@ def main():
         else:
             module.fail_json(msg= "Package does not exists")
 
+    result['state'] = "installed"
     result['changed'] = changed
     result['rc'] = rc	
 
