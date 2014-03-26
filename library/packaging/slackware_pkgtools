@@ -1,11 +1,49 @@
 #!/usr/bin/python
 
+
+DOCUMENTATION = '''
+---
+module: slackware_pkgtools
+author: 
+version_added: 
+short_description: Manage packages on Slackware.
+description:
+    - Manage packages on Slackware using the pkg tools.
+options:
+    name:
+        required: true
+        description:
+        - Name of the package.
+    path:
+        required: true
+        description:
+        - Path where the package is stored.
+    state:
+        required: true
+        choices: [ present, latest, absent ]
+        description:
+          - C(present) will make sure the package is installed.
+            C(latest) will make sure the latest version of the package is installed.
+            C(absent) will make sure the specified package is not installed.
+'''
+
+
+EXAMPLES = '''
+# Make sure python is installed
+- slackware_pkgtools: name=python-2.7.5-i486-1.txz path=/Downloads/ state=present
+
+# Make sure python is the latest version
+- slackware_pkgtools: name=python-2.7.5-i486-1.txz path=/Downloads/ state=latest
+
+# Make sure python is not installed
+- slackware_pkgtools: name=python-2.7.5-i486-1.txz state=absent
+'''
+
+
 import re
 import shlex
 import syslog
 import os
-
-#path = /root/Downloads
 
 
 # Function used for executing commands.
