@@ -76,8 +76,6 @@ def package_present(name, path, module):
         # Install the package
         (rc, stdout, stderr) = execute_command("%s %s%s" % (install_cmd, path, name), module)
 
-            #   rc=1
-
         return (rc, stderr)
 
 
@@ -137,9 +135,6 @@ def main():
         (rc, changed) = package_check(name, module)
 	if rc != 0 :		
         	(rc, changed) = package_present(name, path, module)
-#	else :
-#		result['state'] = "installed"
-#               	module.exit_json(**result)
     elif state in ['latest']:
         (rc, changed) = package_latest(name, path, module)
     elif state in ['absent']:
@@ -158,9 +153,7 @@ def main():
         else:
             module.fail_json(msg= "Package does not exists")
 
-    result['state'] = "installed"
     result['changed'] = changed
-    result['rc'] = rc	
 
     module.exit_json(**result)
 
