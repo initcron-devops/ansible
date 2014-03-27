@@ -280,8 +280,8 @@ class Service(object):
             self.svc_change = True
         elif self.state == "restarted":
             self.svc_change = True
-#	else:
-#	    self.module.exit_json(changed=False, msg="check_service_changed (No condition satisfied)")
+	else:
+	    self.module.exit_json(changed=False, msg="check_service_changed (No condition satisfied)")
 
         if self.module.check_mode and self.svc_change:
             self.module.exit_json(changed=True, msg='service state changed')
@@ -370,6 +370,56 @@ class Service(object):
 
             # Replace previous rc.conf.
             self.module.atomic_move(tmp_rcconf_file, self.rcconf_file)
+
+# ===========================================
+# Subclass: Slackware
+
+class SlackwareService(Service):
+    """
+    This is the Slackware Service manipulation class - it uses /etc/rc.d for
+    service control. Enabling a service is currently not supported because the
+    <service>_flags variable is not boolean, you should supply a rc.conf.local
+    file in some other way.
+    """
+
+    platform = 'Linux'
+    distribution = "Slackware"
+
+    def get_service_tools(self):
+        rcdir = '/etc/rc.d/'
+	
+        rc_script = "%s/%s" % (rcdir, self.name)
+        if os.path.isfile(rc_script):
+            self.svc_cmd = rc_script
+
+        if not self.svc_cmd:
+            self.module.fail_json(msg='unable to find rc.d script')
+
+    def get_service_status(self):
+	var = 'self.name'
+        service_var1 , service_var2 = var.split(".")
+
+#        rcfst = 'ps aux|grep'
+#        rcscnd = '|grep -v grep'
+
+        rc, stdout, stderr = self.execute_command("%s %s %s" % ('ps aux|grep ', service_var2 , '|grep -v grep'))	
+
+	module.exit_json(changed=False, rc = rc,  msg="rc value")
+        module.exit_json(**result)
+
+
+        if rc == 1:
+            self.running = False
+        elif rc == 0:
+            self.running = True
+#        else:
+#            print json.dumps({"msg" : "rc != 0 or 1"})
+
+
+
+    def service_control(self):
+        return self.execute_command("%s %s" % (self.svc_cmd, self.action))
+
 
 # ===========================================
 # Subclass: Linux
@@ -463,14 +513,30 @@ class LinuxService(Service):
         else:
             # still a SysV init script, but /sbin/service isn't installed
             for initdir in initpaths:
-                initscript = "%s/%s" % (initdir,self.name)
-                if os.path.isfile(initscript):
-                    self.svc_initscript = initscript
+		if initdir == "/etc/init.d":
+ 	               initscript = "%s/%s" % (initdir,self.name)
+           	       if os.path.isfile(initscript):
+                       self.svc_initscript = initscript
+#		else: 
+#                       initscript = "%s/%s" % (initdir,self.name)
+#                       if os.path.isfile(initscript):
+#                       self.svc_initscript = initscript
+	
+
+#            for initdir in initpaths:
+#                initscript = "%s/%s" % (initdir,self.name)
+#                if os.path.isfile(initscript):
+#                    self.svc_initscript = initscript
+
+
 
         # couldn't find anything yet, assume systemd
         if self.svc_cmd is None and self.svc_initscript is None:
             if location.get('systemctl'):
                 self.svc_cmd = location['systemctl']
+#	else:
+#	    self.svc_cmd = initscript
+
 
         if self.svc_cmd is None and not self.svc_initscript:
             self.module.fail_json(msg='cannot find \'service\' binary or init script for service,  possible typo in service name?, aborting')
@@ -495,6 +561,18 @@ class LinuxService(Service):
             openrc_rc, openrc_status_stdout, openrc_status_stderr = self.execute_command("%s %s status" % (self.svc_cmd, self.name))
             self.running = "started" in openrc_status_stdout
             self.crashed = "crashed" in openrc_status_stderr
+
+
+        if self.svc_cmd and self.svc_cmd.startswith("/etc/rc.d") and self.running is None:
+            var = 'self.name'
+   	    service_var1 , service_var2 = var.split(".")
+            rc, stdout, stderr = self.execute_command("%s %s" % ('ps aux | grep ', service_var2))
+            if rc == 1:
+                self.running = False
+            elif rc == 0:
+                self.running = True
+
+
 
         # if the job status is still not known check it by response code
         # For reference, see:
@@ -532,6 +610,18 @@ class LinuxService(Service):
                 # iptables status command output is lame
                 # TODO: lookup if we can use a return code for this instead?
                 self.running = True
+
+
+#        if self.svc_cmd.startswith('/etc/rc.d'):
+#               var = 'self.name'
+#               service_var1 , service_var2 = var.split(".")
+#               rc, stdout, stderr = self.execute_command("%s %s %s" % ('ps aux | grep ', service_var2 , ' | grep -v grep'))
+#               if rc == 1:
+#                   self.running = False
+#               elif rc == 0:
+#                   self.running = True
+
+
 
         return self.running
 
@@ -711,6 +801,7 @@ class LinuxService(Service):
             # upstart
             svc_cmd = "%s" % self.svc_initscript
 
+
         # In OpenRC, if a service crashed, we need to reset its status to
         # stopped with the zap command, before we can start it back.
         if self.svc_cmd and self.svc_cmd.endswith('rc-service') and self.action == 'start' and self.crashed:
@@ -862,52 +953,6 @@ class OpenBsdService(Service):
     def service_control(self):
         return self.execute_command("%s %s" % (self.svc_cmd, self.action))
 
-# ===========================================
-# Subclass: Slackware
-
-class SlackwareService(Service):
-    """
-    This is the Slackware Service manipulation class - it uses /etc/rc.d for
-    service control. Enabling a service is currently not supported because the
-    <service>_flags variable is not boolean, you should supply a rc.conf.local
-    file in some other way.
-    """
-
-    platform = 'Slackware'
-    distribution = None
-
-    def get_service_tools(self):
-        rcdir = '/etc/rc.d/'
-	
-        rc_script = "%s/%s" % (rcdir, self.name)
-        if os.path.isfile(rc_script):
-            self.svc_cmd = rc_script
-
-        if not self.svc_cmd:
-            self.module.fail_json(msg='unable to find rc.d script')
-
-    def get_service_status(self):
-	var = 'self.name'
-        service_var1 , service_var2 = var.split(".")
-
-#        rcfst = 'ps aux|grep'
-#        rcscnd = '|grep -v grep'
-
-        rc, stdout, stderr = self.execute_command("%s %s %s" % ('ps aux|grep ', service_var2 , '|grep -v grep'))
-	
-        if rc == 1:
-            self.running = False
-
-        elif rc == 0:
-            self.running = True
-	   
-#        else:
-#            print json.dumps({"msg" : "rc != 0 or 1"})
-
-
-
-    def service_control(self):
-        return self.execute_command("%s %s" % (self.svc_cmd, self.action))
 
 
 # ===========================================
