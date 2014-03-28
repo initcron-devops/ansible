@@ -281,7 +281,7 @@ class Service(object):
         elif self.state == "restarted":
             self.svc_change = True
 	else:
-	    self.module.exit_json(changed=False, msg="check_service_changed (No condition satisfied)")
+	    self.module.exit_json(changed=False, running=self.running, state=self.state, msg="check_service_changed (No condition satisfied)")
 
         if self.module.check_mode and self.svc_change:
             self.module.exit_json(changed=True, msg='service state changed')
@@ -410,6 +410,7 @@ class SlackwareService(Service):
 
         if rc == 1:
             self.running = False
+
         elif rc == 0:
             self.running = True
 #        else:
@@ -516,17 +517,13 @@ class LinuxService(Service):
 		if initdir == "/etc/init.d":
  	               initscript = "%s/%s" % (initdir,self.name)
            	       if os.path.isfile(initscript):
-                       self.svc_initscript = initscript
-#		else: 
-#                       initscript = "%s/%s" % (initdir,self.name)
-#                       if os.path.isfile(initscript):
-#                       self.svc_initscript = initscript
+                           self.svc_initscript = initscript
+		elif initdir == "/etc/rc.d": 
+#	               self.module.fail_json(msg='initpath loop')
+                       initscript = "%s/%s" % (initdir,self.name)
+                       if os.path.isfile(initscript):
+                           self.svc_initscript = initscript
 	
-
-#            for initdir in initpaths:
-#                initscript = "%s/%s" % (initdir,self.name)
-#                if os.path.isfile(initscript):
-#                    self.svc_initscript = initscript
 
 
 
@@ -551,6 +548,7 @@ class LinuxService(Service):
         # if we have decided the service is managed by upstart, we check for some additional output...
         if self.svc_initctl and self.running is None:
             # check the job status by upstart response
+            self.module.fail_json(msg='service status initctl loop')
             initctl_rc, initctl_status_stdout, initctl_status_stderr = self.execute_command("%s status %s" % (self.svc_initctl, self.name))
             if initctl_status_stdout.find("stop/waiting") != -1:
                 self.running = False
@@ -558,19 +556,22 @@ class LinuxService(Service):
                 self.running = True
 
         if self.svc_cmd and self.svc_cmd.endswith("rc-service") and self.running is None:
+            self.module.fail_json(msg='service status rc-service loop')
+
             openrc_rc, openrc_status_stdout, openrc_status_stderr = self.execute_command("%s %s status" % (self.svc_cmd, self.name))
             self.running = "started" in openrc_status_stdout
             self.crashed = "crashed" in openrc_status_stderr
 
 
-        if self.svc_cmd and self.svc_cmd.startswith("/etc/rc.d") and self.running is None:
-            var = 'self.name'
+        if self.svc_initscript.startswith("/etc/rc.d") and self.running is None:
+#            self.module.fail_json(msg='status chk loop')
+            var = self.name
    	    service_var1 , service_var2 = var.split(".")
-            rc, stdout, stderr = self.execute_command("%s %s" % ('ps aux | grep ', service_var2))
-            if rc == 1:
-                self.running = False
-            elif rc == 0:
+            rc, stdout, stderr = self.execute_command("%s %s %s" % ('ps aux | grep ', service_var2, '|grep -v grep'))
+            if rc == 0:
                 self.running = True
+            else:
+                self.running = False
 
 
 
@@ -578,13 +579,16 @@ class LinuxService(Service):
         # For reference, see:
         # http://refspecs.linuxbase.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/iniscrptact.html
         if self.running is None:
-            if rc in [1, 2, 3, 4, 69]:
-                self.running = False
-            elif rc == 0:
-                self.running = True
+#            self.module.fail_json(msg='service status self running none loop1', svccmd= self.svc_initscript)
+       	    if rc in [1, 2, 3, 4, 69]:
+   	        self.running = False
+	    elif rc == 0:
+      	        self.running = True
 
         # if the job status is still not known check it by status output keywords
         if self.running is None:
+            self.module.fail_json(msg='service status self running none loop2')
+
             # first tranform the status output that could irritate keyword matching
             cleanout = status_stdout.lower().replace(self.name.lower(), '')
             if "stop" in cleanout:
@@ -610,16 +614,6 @@ class LinuxService(Service):
                 # iptables status command output is lame
                 # TODO: lookup if we can use a return code for this instead?
                 self.running = True
-
-
-#        if self.svc_cmd.startswith('/etc/rc.d'):
-#               var = 'self.name'
-#               service_var1 , service_var2 = var.split(".")
-#               rc, stdout, stderr = self.execute_command("%s %s %s" % ('ps aux | grep ', service_var2 , ' | grep -v grep'))
-#               if rc == 1:
-#                   self.running = False
-#               elif rc == 0:
-#                   self.running = True
 
 
 
@@ -800,7 +794,7 @@ class LinuxService(Service):
         elif self.svc_initscript:
             # upstart
             svc_cmd = "%s" % self.svc_initscript
-
+#	    self.module.exit_json(msg = 'service control', svccmd = svc_cmd)
 
         # In OpenRC, if a service crashed, we need to reset its status to
         # stopped with the zap command, before we can start it back.
