@@ -118,6 +118,13 @@ def main():
     path = module.params['path']	
     state = module.params['state']
 
+
+    if path.endswith('/'):
+        path = path
+    else:
+        path += '/'
+
+
     rc = 0
     stdout = ''
     stderr = ''
