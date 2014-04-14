@@ -35,6 +35,12 @@ EXAMPLES = '''
 # Make sure python is the latest version
 - slackware_pkgtools: name=python-2.7.5-i486-1.txz path=/Downloads/ state=latest
 
+# Make sure python is the latest version and install new
+- slackware_pkgtools: name=python-2.7.5-i486-1.txz path=/Downloads/ state=latest args=newinstall
+
+# Make sure python is the latest version and reinstall
+- slackware_pkgtools: name=python-2.7.5-i486-1.txz path=/Downloads/ state=latest args=reinstall
+
 # Make sure python is not installed
 - slackware_pkgtools: name=python-2.7.5-i486-1.txz state=absent
 '''
@@ -81,12 +87,12 @@ def package_present(name, path, module):
 
 
 # Function used to upgrade package.
-def package_latest(name, path, module):
+def package_latest(name, path, args, module):
 
         upgrade_cmd = '/sbin/upgradepkg'
 
         # Install the package
-        (rc, stdout, stderr) = execute_command("%s %s%s" % (upgrade_cmd, path, name), module)
+        (rc, stdout, stderr) = execute_command("%s %s %s%s" % (upgrade_cmd, args, path, name), module)
 
         return (rc, stderr)
 
@@ -109,6 +115,7 @@ def main():
         argument_spec = dict(
             name = dict(required=True),
 	    path = dict(required=True),
+	    args = dict(required=False),
             state = dict(required=True, choices=['present','absent','latest','check']),
         ),
 #        supports_check_mode = True
@@ -117,6 +124,7 @@ def main():
     name = module.params['name']
     path = module.params['path']	
     state = module.params['state']
+    args = module.params['args']
 
 
     if path.endswith('/'):
@@ -133,7 +141,7 @@ def main():
     result['name'] = name
     result['path'] = path
     result['state'] = state
-	
+    result['args'] = args
 
 
 
@@ -142,10 +150,32 @@ def main():
         (rc, changed) = package_check(name, module)
 	if rc != 0 :		
         	(rc, changed) = package_present(name, path, module)
+                module.exit_json(changed=True)
+        else:
+                module.exit_json(changed=False, msg= "Package already installed")
     elif state in ['latest']:
-        (rc, changed) = package_latest(name, path, module)
+    	if args in ['newinstall']:
+		args = "--install-new"
+	        (rc, changed) = package_latest(name, path, args, module)
+                module.exit_json(changed=True)
+	elif args in ['reinstall']:
+	        args = "--reinstall"
+         	(rc, changed) = package_latest(name, path, args, module)
+                module.exit_json(changed=True)
+	else:
+	    (rc, changed) = package_check(name, module)
+            if rc != 0 :
+		(rc, changed) = package_latest(name, path, args, module)
+	        module.exit_json(changed=True)
+   	    else:
+                module.exit_json(changed=False, msg= "Package already updated")
     elif state in ['absent']:
-        (rc, changed) = package_absent(name, module)
+        (rc, changed) = package_check(name, module)
+        if rc == 0 :
+	        (rc, changed) = package_absent(name, module)
+                module.exit_json(changed=True)
+	else:
+	        module.exit_json(changed=False, msg= "Package already uninstalled")
     elif state in ['check']:
         (rc, changed) = package_check(name, module)
     else:
