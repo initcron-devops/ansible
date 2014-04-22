@@ -36,7 +36,7 @@ EXAMPLES = '''
 - slackware_pkgtools: name=python-2.7.5-i486-1.txz path=/Downloads/ state=latest
 
 # Make sure python is the latest version and install new
-- slackware_pkgtools: name=python-2.7.5-i486-1.txz path=/Downloads/ state=latest args=newinstall
+- slackware_pkgtools: name=python-2.7.5-i486-1.txz path=/Downloads/ state=latest args=installnew
 
 # Make sure python is the latest version and reinstall
 - slackware_pkgtools: name=python-2.7.5-i486-1.txz path=/Downloads/ state=latest args=reinstall
@@ -154,7 +154,7 @@ def main():
         else:
                 module.exit_json(changed=False, msg= "Package already installed")
     elif state in ['latest']:
-    	if args in ['newinstall']:
+    	if args in ['installnew']:
 		args = "--install-new"
 	        (rc, changed) = package_latest(name, path, args, module)
                 module.exit_json(changed=True)
